@@ -51,10 +51,8 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -t frontend-app:${{ github.sha }} ./starter/frontend
-          echo ${{ github.sha }}
+          echo ${{ github.sha }} > image-tag.txt
         id: build
-      - name: Save image tag
-        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
   push-to-ecr:
     name: Push to ECR
@@ -80,10 +78,10 @@ jobs:
 
       - name: Push Docker image to ECR
         run: |
-          IMAGE_TAG=${{ env.IMAGE_TAG }}
+          IMAGE_TAG=$(cat image-tag.txt)
+          echo $IMAGE_TAG
           echo docker image
           docker images
-          echo $IMAGE_TAG
           docker tag frontend-app:$IMAGE_TAG 013138012705.dkr.ecr.us-east-1.amazonaws.com/frontend-app:$IMAGE_TAG
           echo docker push 
           docker push <013138012705>.dkr.ecr.us-east-1.amazonaws.com/frontend-app:$IMAGE_TAG
