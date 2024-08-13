@@ -37,22 +37,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      # - name: Upload image tag
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: image-tag
+      #     path: image-tag.txt
+          
+      # - name: Download image tag
+      #   uses: actions/download-artifact@v2
+      #   with:
+      #     name: image-tag
+
       - name: Build Docker image
         run: |
           docker build -t frontend-app:${{ github.sha }} ./starter/frontend
-          echo ${{ github.sha }} > image-tag.txt
+          echo ${{ github.sha }}
         id: build
-
-      - name: Upload image tag
-        uses: actions/upload-artifact@v2
-        with:
-          name: image-tag
-          path: image-tag.txt
-          
-      - name: Download image tag
-        uses: actions/download-artifact@v2
-        with:
-          name: image-tag
 
   push-to-ecr:
     name: Push to ECR
@@ -78,7 +78,8 @@ jobs:
 
       - name: Push Docker image to ECR
         run: |
-          IMAGE_TAG=$(cat image-tag.txt)
+          IMAGE_TAG=${{ github.sha }}
+          echo $IMAGE_TAG
           docker tag frontend-app:$IMAGE_TAG 013138012705.dkr.ecr.us-east-1.amazonaws.com/frontend-app:$IMAGE_TAG
           docker push <013138012705>.dkr.ecr.us-east-1.amazonaws.com/frontend-app:$IMAGE_TAG
 
