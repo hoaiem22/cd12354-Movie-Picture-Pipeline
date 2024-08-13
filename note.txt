@@ -1,0 +1,84 @@
+#5.5 Step 3: Setup CD Environment
+#1. init terraform
+git clone https://github.com/tfutils/tfenv.git ~/.tfenv
+export PATH="$HOME/.tfenv/bin:$PATH"
+source ~/.bashrc
+tfenv install 1.3.9
+tfenv use 1.3.9
+cd /workspace/setup/terraform
+terraform init
+
+#2. create access key admin
+movie-picture-admin
+AKIAQGDYWFIQ7R6SFTV2
+Bm5AqAMPZNl4mDAH4P01PiB6GkyaqCBGCPWGsWyb
+
+#3. Create AWS infrastructure with Terraform
+export AWS_ACCESS_KEY_ID=AKIAQGDYWFIQ7R6SFTV2
+export AWS_SECRET_ACCESS_KEY=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
+
+cd /workspace/setup/terraform
+terraform apply
+
+#view output
+cd setup/terraform
+terraform output
+
+#4. Step 4. Generate AWS access keys for GitHub Actions
+github-action-user
+AKIAQGDYWFIQR35OXYGY
+QKsbd3/GQBTfadwgnnw1WGejN3uaC9M7IWT0q6Uo
+
+#Install JQ
+brew install jq
+./init.sh
+
+#5.6 Step 4: Frontend Development Notes
+
+#Running tests
+npm ci
+npm test
+CI=true npm test
+
+#Running linter
+npm run lint
+
+# Run local development server with hot reloading and point to the backend default
+cd starter/frontend
+docker build --build-arg REACT_APP_MOVIE_API_URL=$REACT_APP_MOVIE_API_URL --tag=mp-frontend:latest .
+REACT_APP_MOVIE_API_URL=http://localhost:5000 npm start
+
+#To build the frontend application for a production deployment, they use the following commands:
+# Build the image
+# NOTE: Make sure the image is built with the URL of the backend system.
+# The URL below would be the default backend URL when running locally
+docker build --build-arg=REACT_APP_MOVIE_API_URL=http://localhost:5000 --tag=mp-frontend:latest .
+
+docker run --name mp-frontend -p 3000:3000 -d mp-frontend
+
+#Deploy Kubernetes Manifests
+cd starter/frontend/k8s
+
+# Make sure you're kubeconfig is configured for the EKS cluster, i.e.
+# aws eks update-kubeconfig`
+# Set the image tag to the newer version
+# ℹ️ Don't commit any changes to the manifests that this command introduces
+aws eks update-kubeconfig --name cluster --region us-east-1
+kustomize edit set image frontend=013138012705.dkr.ecr.us-east-1.amazonaws.com/frontend:0.0.1
+
+# Apply the manifests to the cluster
+kustomize build | kubectl apply -f -
+
+#5.7 Step 5: Backend Development Notes
+deactivate
+
+rm -rf myenv
+python3.10 -m venv myenv
+source myenv/bin/activate
+pip install pipenv
+pipenv install --dev
+pipenv run test
+pipenv run lint
+
+kustomize edit set image backend=013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:0.0.1
+kustomize build | kubectl apply -f -
