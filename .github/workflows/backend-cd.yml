@@ -5,110 +5,44 @@ on:
     branches:
       - main
     paths:
-      - 'starter/backend/**'  # Trigger only when files in the backend directory change
-  workflow_dispatch:  # Allows manual triggering of the workflow
+      - 'starter/backend/**'
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: starter/backend
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pipenv
-          pipenv install --dev
-
-      - name: Run lint
-        run: pipenv run lint
-
+    uses: ./.github/workflows/backend-ci.yml # Reuse CI workflow for lint job
+    
   test:
+    uses: ./.github/workflows/backend-ci.yml # Reuse CI workflow for test job
+
+  build-and-push:
+    needs: [lint, test]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: starter/backend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pipenv
-          pipenv install
-      - name: Run tests
-        run: pipenv run test
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Build and Tag Docker Image
+        working-directory: ./starter/backend
+        run: docker build -t 013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:${{ github.sha }} .
+      - name: Push Docker Image
+        run: docker push 013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:${{ github.sha }}
+    env:
+      DOCKER_USERNAME: ${{ secrets.AWS_ACCESS_KEY_ID }} 
+      DOCKER_PASSWORD: ${{ secrets.AWS_SECRET_ACCESS_KEY }}      
 
-  build-and-deploy:
-    needs: [test, lint]
+  deploy:
+    needs: build-and-push
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: starter/backend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Set Image Tag in Deployment Manifest
+        uses: mikefarah/yq@master
         with:
-          python-version: '3.8'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pipenv
-          pipenv install
-      - name: Build Docker Image
-        run: |
-          docker build -t my-backend:latest .
-      #    echo "REACT_APP_MOVIE_API_URL=$(docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' backend | grep REACT_APP_MOVIE_API_URL | cut -d '=' -f2)" >> $GITHUB_ENV
-
-      - name: Tag Docker Image
-        run: docker tag my-backend:latest ${{ secrets.ECR_REGISTRY_B }}:${{ github.sha }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      # - name: Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v1
-      - name: Push Docker Image to ECR
-        run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
-          echo "${{ github.sha }} ${{ secrets.AWS_ACCESS_KEY_ID }} ${{ secrets.AWS_SECRET_ACCESS_KEY }} ${{ secrets.AWS_REGION }} ${{ secrets.ECR_REGISTRY }}"
-          docker push ${{ secrets.ECR_REGISTRY_B }}:${{ github.sha }}
-
-        shell: bash
-      - name: Update kubectl
-        run: |
-          aws eks update-kubeconfig --name cluster --region ${{ secrets.AWS_REGION }}
-
-      - name: Deploy to Kubernetes
-        run: |
-          cd k8s
-          kustomize edit set image backend=${{ secrets.ECR_REGISTRY_B }}:${{ github.sha }}
-          kustomize build | kubectl apply -f -
-        shell: bash
-
-  # deploy:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   steps:
-      # - name: Checkout code
-      #   uses: actions/checkout@v2
-      
+          cmd: yq eval -i '.spec.template.spec.containers[0].image = strenv(IMAGE_URL)' deployment.yaml 
+        env:
+          IMAGE_URL:013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:${{ github.sha }}
+      - name: Apply Deployment
+        run: kubectl apply -f deployment.yaml
+      - name: Rollout Restart
+        run: kubectl rollout restart deployment aws-auth # Replace with your deployment name
