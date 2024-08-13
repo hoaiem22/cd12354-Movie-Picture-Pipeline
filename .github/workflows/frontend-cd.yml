@@ -79,6 +79,8 @@ jobs:
       - name: Push Docker image to ECR
         run: |
           IMAGE_TAG=${{ github.sha }}
+          echo docker image
+          docker images
           echo $IMAGE_TAG
           docker tag frontend-app:$IMAGE_TAG 013138012705.dkr.ecr.us-east-1.amazonaws.com/frontend-app:$IMAGE_TAG
           echo docker push 
