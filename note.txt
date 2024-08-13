@@ -8,15 +8,6 @@ tfenv use 1.3.9
 cd /workspace/setup/terraform
 terraform init
 
-#2. create access key admin
-movie-picture-admin
-AKIAQGDYWFIQ7R6SFTV2
-Bm5AqAMPZNl4mDAH4P01PiB6GkyaqCBGCPWGsWyb
-
-#3. Create AWS infrastructure with Terraform
-export AWS_ACCESS_KEY_ID=AKIAQGDYWFIQ7R6SFTV2
-export AWS_SECRET_ACCESS_KEY=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
-
 cd /workspace/setup/terraform
 terraform apply
 
