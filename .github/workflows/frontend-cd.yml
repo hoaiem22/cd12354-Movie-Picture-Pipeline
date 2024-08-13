@@ -43,6 +43,17 @@ jobs:
           echo ${{ github.sha }} > image-tag.txt
         id: build
 
+      - name: Upload image tag
+        uses: actions/upload-artifact@v2
+        with:
+          name: image-tag
+          path: image-tag.txt
+          
+      - name: Download image tag
+        uses: actions/download-artifact@v2
+        with:
+          name: image-tag
+
   push-to-ecr:
     name: Push to ECR
     runs-on: ubuntu-latest
