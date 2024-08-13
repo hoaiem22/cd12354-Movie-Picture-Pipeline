@@ -1,39 +1,72 @@
-name: Backend CI
+name: Backend Continuous Integration
 
 on:
-  workflow_call: # Allows this workflow to be called by other workflows
+  push:
+    branches:
+      - main
+    paths:
+      - 'starter/frontend/**'
+  workflow_dispatch:  # Allow manual triggering
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  lint:
+  Linting:
     runs-on: ubuntu-latest
+    environment: Devlopmnet Environment
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - name: Check the Repository
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18.14'  # Adjust as needed
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
 
-      - name: Install Dependencies
-        run: npm ci
+    - name: Install Dependencies
+      working-directory: starter/backend 
+      run:  |
+        python -m pip install --upgrade pip
+        pip install pipenv
+        pip install flake8
 
-      - name: Lint Code
-        run: npm run lint  # Replace with your lint command
+    - name: Checkout Run Lint
+      run: cd starter/backend && pipenv run lint
 
-  test:
+  Test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - name: Check the Repository
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18.14'  # Adjust as needed
+    - name: Use Python 3
+      uses:  actions/setup-python@v4
+      with:
+        python-version: "3.10"
 
-      - name: Install Dependencies
-        run: npm ci
+    - name: Install Dependencies
+      working-directory: starter/backend 
+      run:  |
+        python -m pip install --upgrade pip
+        pip install pipenv
+        pip install flake8
 
-      - name: Run Tests
-        run: CI=true npm test  # Simulates CI environment for tests
+    - name: Test
+      run: cd starter/backend && pipenv install pytest && pipenv run test
+
+      
+  Build:
+    needs: [Linting, Test]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check the Repository
+      uses: actions/checkout@v3
+
+    - name: Build Docker Image
+      run: |
+        cd starter/backend
+        docker build --tag mp-backend:latest .

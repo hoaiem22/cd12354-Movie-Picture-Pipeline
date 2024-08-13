@@ -5,44 +5,96 @@ on:
     branches:
       - main
     paths:
-      - 'starter/backend/**'
+      - 'starter/frontend/**'
   workflow_dispatch:  # Allow manual triggering
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  lint:
-    uses: ./.github/workflows/backend-ci.yml # Reuse CI workflow for lint job
-    
-  test:
-    uses: ./.github/workflows/backend-ci.yml # Reuse CI workflow for test job
-
-  build-and-push:
-    needs: [lint, test]
+  Linting:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-      - name: Build and Tag Docker Image
-        working-directory: ./starter/backend
-        run: docker build -t 013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:${{ github.sha }} .
-      - name: Push Docker Image
-        run: docker push 013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:${{ github.sha }}
-    env:
-      DOCKER_USERNAME: ${{ secrets.AWS_ACCESS_KEY_ID }} 
-      DOCKER_PASSWORD: ${{ secrets.AWS_SECRET_ACCESS_KEY }}      
+    environment: Devlopmnet Environment
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-      - name: Set Image Tag in Deployment Manifest
-        uses: mikefarah/yq@master
-        with:
-          cmd: yq eval -i '.spec.template.spec.containers[0].image = strenv(IMAGE_URL)' deployment.yaml 
-        env:
-          IMAGE_URL:013138012705.dkr.ecr.us-east-1.amazonaws.com/backend:${{ github.sha }}
-      - name: Apply Deployment
-        run: kubectl apply -f deployment.yaml
-      - name: Rollout Restart
-        run: kubectl rollout restart deployment aws-auth # Replace with your deployment name
+    - name: Check the Repository
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install Rependencies
+      working-directory: starter/backend 
+      run:  |
+        python -m pip install --upgrade pip
+        pip install pipenv
+        pip install flake8
+
+    - name: Checkout Run Lint
+      run: cd starter/backend && pipenv run lint
+
+  Test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check the Repository
+      uses: actions/checkout@v3
+
+    - name: Use Python 3
+      uses:  actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install Dependencies
+      working-directory: starter/backend 
+      run:  |
+        python -m pip install --upgrade pip
+        pip install pipenv
+        pip install flake8
+
+    - name: Test
+      run: cd starter/backend && pipenv install pytest && pipenv run test
+
+      
+  Build:
+    needs: [Linting, Test]
+    runs-on: ubuntu-latest
+    environment: Devlopmnet Environment
+    steps:
+    - name: Check the Repository
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+        
+    - name: Login to Amazon
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and Push Docker Image
+      working-directory: starter/backend
+      env:
+        IMAGE_TAG: latest
+        REPO_NAME: backend
+      run: |
+        docker build --build-arg=REACT_APP_MOVIE_API_URL=http://localhost:5000 --tag 013138012705.dkr.ecr.us-east-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG .
+        docker push 013138012705.dkr.ecr.us-east-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG
+    - name: Update Kubeconfig
+      run:
+       aws eks update-kubeconfig --name cluster --region us-east-1
+
+    - name: Deploy Docker Image to Amazon EKS
+      working-directory: starter/backend/k8s
+      env:
+        IMAGE_TAG: latest
+        REPO_NAME: backend
+      run: |
+        aws eks update-kubeconfig --name cluster --region us-east-1
+        kustomize edit set image backend=013138012705.dkr.ecr.us-east-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG
+        kustomize build | kubectl apply -f -
