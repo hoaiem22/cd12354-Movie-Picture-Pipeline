@@ -1,18 +1,20 @@
 name: Frontend Continuous Deployment
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'starter/frontend/**'
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'starter/frontend/**'
   workflow_dispatch:  # Allow manual triggering
   pull_request:
+    types: [closed]
     branches:
       - main
 
 jobs:
   Linting:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     environment: Devlopmnet Environment
 
@@ -35,6 +37,7 @@ jobs:
       run: cd starter/frontend && npm run lint
 
   Test:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
