@@ -14,6 +14,15 @@ terraform apply
 #view output
 cd setup/terraform
 terraform output
+#2. create access key admin
+movie-picture-admin
+AKIAQGDYWFIQ7R6SFTV2
+Bm5AqAMPZNl4mDAH4P01PiB6GkyaqCBGCPWGsWyb
+
+
+#3. Create AWS infrastructure with Terraform
+export AWS_ACCESS_KEY_ID=AKIAQGDYWFIQ7R6SFTV2
+export AWS_SECRET_ACCESS_KEY=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
 
 #4. Step 4. Generate AWS access keys for GitHub Actions
 github-action-user
